@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Chart Point Tracker — Live Screen Motion Analysis</title>
+<meta name="description" content="Client-side screen-share point tracker using OpenCV.js template matching. Tracks a chosen point's motion and extrapolates short-term trajectory. Not financial advice." />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <div class="app">
+
+    <!-- ===== Header ===== -->
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <div class="brand-text">
+          <h1>Point&nbsp;Tracker</h1>
+          <p class="brand-sub">Live screen motion analysis · 100% client-side</p>
+        </div>
+      </div>
+      <div class="status-pill" id="statusPill">
+        <span class="dot" id="statusDot"></span>
+        <span id="statusText">Idle</span>
+      </div>
+    </header>
+
+    <!-- ===== Disclaimer banner ===== -->
+    <div class="disclaimer" role="note">
+      <strong>Not financial advice.</strong> This tool tracks pixel motion of a point on your screen and extrapolates it visually. It has no access to real market data and cannot predict actual price movement. Use for demo / visual-tracking purposes only.
+    </div>
+
+    <!-- ===== Main grid ===== -->
+    <main class="layout">
+
+      <!-- Video / canvas panel -->
+      <section class="panel video-panel">
+        <div class="panel-head">
+          <h2>Screen Feed</h2>
+          <span class="hint" id="captureHint">Share your screen, then click a point on the chart to track</span>
+        </div>
+
+        <div class="stage" id="stage">
+          <video id="video" autoplay playsinline muted></video>
+          <canvas id="overlay"></canvas>
+          <div class="stage-empty" id="stageEmpty">
+            <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5">
+              <rect x="2" y="4" width="20" height="13" rx="1.5"/>
+              <path d="M8 21h8M12 17v4"/>
+              <path d="M6 13l3.5-4 3 2.5L17 7" stroke-width="1.5"/>
+            </svg>
+            <p>No screen shared yet</p>
+          </div>
+        </div>
+
+        <div class="controls">
+          <button class="btn btn-primary" id="btnShare">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+            Share Screen
+          </button>
+          <button class="btn btn-success" id="btnStart" disabled>
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+            Start Tracking
+          </button>
+          <button class="btn btn-warn" id="btnStop" disabled>
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>
+            Stop Tracking
+          </button>
+          <button class="btn btn-ghost" id="btnReset" disabled>
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 2.6-6.4M3 4v6h6"/></svg>
+            Reset
+          </button>
+        </div>
+      </section>
+
+      <!-- Stats / prediction panel -->
+      <section class="panel data-panel">
+
+        <div class="card prediction-card">
+          <h2>60s Direction Outlook</h2>
+          <div class="prob-row">
+            <div class="prob up">
+              <span class="prob-label">UP</span>
+              <span class="prob-value" id="probUp">—</span>
+              <div class="prob-bar"><div class="prob-fill" id="probUpFill"></div></div>
+            </div>
+            <div class="prob down">
+              <span class="prob-label">DOWN</span>
+              <span class="prob-value" id="probDown">—</span>
+              <div class="prob-bar"><div class="prob-fill" id="probDownFill"></div></div>
+            </div>
+          </div>
+          <div class="confidence-row">
+            <span class="conf-label">Confidence</span>
+            <span class="conf-value" id="confValue">—</span>
+          </div>
+        </div>
+
+        <div class="card metrics-card">
+          <h2>Live Metrics</h2>
+          <div class="metrics-grid">
+            <div class="metric">
+              <span class="metric-label">Position (X, Y)</span>
+              <span class="metric-value" id="metricPos">—</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">Vertical Speed</span>
+              <span class="metric-value" id="metricSpeed">—</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">Direction</span>
+              <span class="metric-value" id="metricDirection">—</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">Momentum</span>
+              <span class="metric-value" id="metricMomentum">—</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">Match Score</span>
+              <span class="metric-value" id="metricMatch">—</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">Buffer (60s)</span>
+              <span class="metric-value" id="metricBuffer">0%</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card chart-card">
+          <h2>Y-Position History (60s)</h2>
+          <canvas id="historyChart" height="140"></canvas>
+        </div>
+
+        <div class="card log-card">
+          <h2>Activity Log</h2>
+          <div class="log" id="log"></div>
+        </div>
+
+      </section>
+    </main>
+
+    <footer class="footer">
+      <p>Runs entirely in your browser. No data leaves your device. See README for details.</p>
+    </footer>
+  </div>
+
+  <!-- OpenCV.js (loaded from CDN, async) -->
+  <script async src="https://docs.opencv.org/4.9.0/opencv.js" onload="window.__cvReady && window.__cvReady()"></script>
+  <script src="app.js"></script>
+</body>
+</html>
